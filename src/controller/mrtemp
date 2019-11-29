@@ -1,0 +1,115 @@
+#!/usr/bin/python3
+
+import time
+import re
+import datetime
+import os
+import sqlalchemy
+from flask_sqlalchemy import SQLAlchemy
+
+from flask import Flask, request
+from flask import render_template
+
+from sqlalchemy import create_engine, Column, Float, DateTime, Integer
+from sqlalchemy.ext.declarative import declarative_base
+
+DB = 'sqlite:////opt/heating/db/mrtemp.db'
+Base = declarative_base()
+
+hours = (6,7,12,13,17,18,19,20)
+TARGET = 19.5
+boost_time = datetime.datetime(1990, 1, 1)
+
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = DB
+db = SQLAlchemy(app)
+
+class Config(db.Model):
+    __tablename__ = 'config'
+    id = db.Column(db.Integer, primary_key=True)
+    target_temp = db.Column(db.Float, server_default='19.0')
+    boost_time = db.Column(db.DateTime)
+    
+    @classmethod
+    def get(cls):
+        return Config.query.filter_by(id=1).one()
+
+def _get_temp():
+    with open('/sys/devices/w1_bus_master1/28-0416369f29ff/w1_slave', 'r') as f:
+        for line in f:
+            m = re.match(r'.*t=(\d+)', line)
+            if m:
+                temp=float(m.group(1))
+                return temp / 1000.0
+
+def is_scheduled():
+    now = datetime.datetime.utcnow()
+    hour = now.hour
+    return hour in hours
+
+def boost_remaining():
+    boost_time = Config.get().boost_time
+    now = datetime.datetime.utcnow()
+    return now - boost_time
+
+def is_boosted():
+    boost_time = Config.get().boost_time
+    now = datetime.datetime.utcnow()
+    if now - boost_time < datetime.timedelta(hours=1):
+        return True
+    else:
+        return False
+
+def get_temp():
+    t = _get_temp()
+    if t >= 84.0:
+        time.sleep(0.1)
+        t = _get_temp()
+
+    return t
+   
+def _relay():
+    if is_boosted():
+        return True
+
+    if is_scheduled():
+        t = get_temp()
+        if t >= Config.get().target_temp:
+            return False
+        else:
+            return True
+    else:
+        return False
+
+@app.route('/')
+def status():
+    temp = get_temp()
+    boiler = "ON" if _relay() else "OFF"
+    sched = "Yes" if is_scheduled() else "No"
+    boosted = is_boosted()
+    target = Config.get().target_temp
+
+    return render_template('index.html',
+           temp=temp, sched=sched, boiler=boiler, boosted=boosted,
+           target=target, boost_remaining=boost_remaining())
+
+@app.route('/t')
+def temp():
+    return str(get_temp())
+
+@app.route('/relay')
+def relay():
+    if _relay():
+        return "1"
+    else:
+        return "0"
+
+@app.route('/boost', methods = ['POST'])
+def boost():
+    if request.method == 'POST':
+        Config.get().boost_time = datetime.datetime.utcnow()
+        db.session.commit()
+        return render_template('boosted.html')
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0')

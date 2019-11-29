@@ -1,0 +1,20 @@
+<HTML>
+
+ <script>
+  refresh=window.setTimeout(function(){window.location.href=window.location.href},1000*60);
+ </script>
+ <HEAD><TITLE>Heating</TITLE></HEAD>
+ <BODY><H1>Heating</H1></BODY>
+ <P>Current temperature: {{temp|float}} C</P>
+ <P>Scheduled: {{sched}}</P>
+ <P>Boiler: {{boiler}}</P>
+ <P>Boosted: {{boosted}}</P>
+ {% if boosted %}
+ <ul>
+	 <li>Boost remaining: {{boost_remaining}}</li>
+</ul>
+{% endif %}
+ <P>Target: {{target}}</p>
+ <form method="POST" action="/boost"><input type="submit" value="Boost"> </form>
+</HTML>
+
