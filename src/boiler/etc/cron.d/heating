@@ -1,0 +1,3 @@
+# M H DoM M DoW Cmd
+*/5 * * 10,11,12,1,2,3 * root /opt/heating/montemp
+

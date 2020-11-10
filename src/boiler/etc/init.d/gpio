@@ -1,0 +1,15 @@
+#!/bin/sh
+#!/bin/sh -e
+### BEGIN INIT INFO
+# Provides:          gpio
+# Required-Start:    mountkernfs
+# Default-Start:     5
+# Default-Stop:      0 6
+### END INIT INFO
+
+
+# setup gpio
+
+echo 23 > /sys/class/gpio/export
+echo out > /sys/class/gpio/gpio23/direction
+
